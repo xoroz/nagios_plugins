@@ -1,0 +1,48 @@
+#!/bin/bash
+# script to check how many key in the last  hour
+# Felipe Ferreira June 2012
+#update Nov 2014
+
+dia=`date +%d -d  "1 hour ago"`
+mes=`date +%m -d  "1 hour ago"`
+ano=`date +%Y -d  "1 hour ago"`
+hora=`date +%H -d  "1 hour ago"`
+tday="$ano-$mes-$dia $hora"
+#log="/var/log/tomcat.classificados/captacao/gerencia-anuncio-integradores.log"
+
+if [ "$4" == "" ]
+then
+  echo -e "\n Syntax: $0 <logfile> <key> <Warning> <Critical> \nex.: $0 '/var/log/tomcat.classificados/captacao/gerencia-anuncio-integradores.log' 'Registrando sucesso de publica' 10 90 \n O script retorana a contagem de $key quantidade de  da ultima hora \n"
+  exit 3
+fi
+
+log=$1
+key=$2
+warn=$3
+crit=$4
+
+if [ ! -f $log ]; then
+        echo "OK - File $log not found!"
+        exit 0
+fi
+
+log_short=`echo $log|awk -F"/" '{ print $NF}'`
+
+#echo "DATE: $tday"
+c=`grep "$tday" $log |grep -ic "${key}"`
+
+if [ -z "$c" ]; then
+ c=0
+fi
+
+if [ "$c" -ge "$crit" ]; then
+ echo "CRITICAL - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 2
+elif [ "$c" -ge "$warn" ]; then
+ echo "WARNING - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 1
+else
+ echo "OK - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 0
+fi
+

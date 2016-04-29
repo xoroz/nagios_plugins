@@ -1,0 +1,51 @@
+#!/bin/bash
+#script to check how many erros in the current hour
+# Felipe Ferreira June 2012
+
+dia=`date +%d -d  "1 hour ago"`
+mes=`date +%b -d  "1 hour ago"`
+ano=`date +%Y -d  "1 hour ago"`
+hora=`date +%H -d  "1 hour ago"`
+tday="${dia}/${mes}/${ano}:${hora}"
+
+#echo $tday
+#echo "09/Jan/2015:10"
+
+if [ $# -lt 3 ]
+  then
+    echo "No arguments supplied"
+    echo "Usage: $0 <LOG> <KEY> <WARNING> <CRITICAL>"
+    echo "Example: $0 /var/log/tomcat6/access_log.log 500 5 10"
+    exit 1
+fi
+log=$1
+key=$2
+warn=$3
+crit=$4
+
+if [ ! -f $log ]; then
+        echo "OK - File $log not found!"
+        exit 0
+fi
+
+log_short=`echo $log|awk -F"/" '{ print $NF}'`
+
+CMD="grep '$tday' $log |egrep -v 'EscenicHealthCheck|libcurl|10.11.31.99|webinject|Wget' | grep -c ' ${key} '"
+#echo $CMD
+c=`eval $CMD`
+
+if [ -z "$c" ]; then
+ c=0
+fi
+
+if [ "$c" -ge "$crit" ]; then
+ echo "CRITICAL - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 2
+elif [ "$c" -ge "$warn" ]; then
+ echo "WARNING - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 1
+else
+ echo "OK - Existem $c $key no $log_short as $hora horas|count=$c"
+ exit 0
+fi
+

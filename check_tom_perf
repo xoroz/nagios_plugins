@@ -1,0 +1,39 @@
+#!/bin/bash
+# script to check performance based on Qtime 
+# Felipe Ferreira Jan 2015
+
+#Numero de chamadas a verificar
+
+nc=1000
+
+log="/var/log/tomcat6/access_log.log"
+
+if [ "$2" == "" ]
+then
+  echo -e "\n Syntax: $0 <Warning> <Critical> \nex.: $0 50 900 \n O script retoran a media do tempo das $nc ultimas chamads\n"
+  exit 3
+fi
+warn=$1
+crit=$2
+
+#CMD_SUM="tail -n $nc $log | grep ' 200 ' | awk '{ print \$( NF - 3)  }' | awk '{sum+=\$1} END { print sum }'"
+
+CMD_SUM="tail -n $nc $log |grep -v 'EscenicHealthCheck' | awk '{ print \$NF }'  |sed 's/ms//g' |  awk '{sum+=\$1} END { print sum }'"
+sum=`eval $CMD_SUM`
+
+#echo "SUM $sum"
+media=`expr $sum / $nc`
+MSG=" Tempo meido de $media ms. nas ultimas $nc chamadas|media=$media"
+#echo $MSG
+
+if [ $media -ge $crit ]; then
+ echo "CRITICAL - $MSG"
+ exit 2
+elif [ $media -ge $warn ]; then
+ echo "WARNING - $MSG"
+ exit 1
+else 
+ echo "OK - $MSG"
+ exit 0
+fi
+

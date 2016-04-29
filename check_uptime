@@ -1,0 +1,29 @@
+#!/usr/bin/perl 
+
+$tempo=`uptime`;
+
+($junk1, $hora_atual, $junk2, $num_dias, $junk3, $tempo_up, $junk4 ) = split(/\s+/,$tempo,7);
+
+if ( $num_dias =~ /:/ ) {
+   $tempo_up = $num_dias;
+   $num_dias = 0;
+}
+elsif ( $junk3 =~ /min/ ) {
+   $tempo_up = "0:$num_dias,";
+   $num_dias = 0;
+}
+
+chop ($tempo_up);
+($horas_up, $min_up) = split(/:/,$tempo_up,2);
+#print ("[$horas_up] [$min_up] [$num_dias]");
+
+
+if (($num_dias == 0) && ($horas_up == 0) && ($min_up <= $ARGV[0])) {
+   print ("ATENCAO: Essa maquina bootou ha $min_up minutos");
+   exit 2;
+}
+else {
+   #print ("OK: Essa maquina esta no ar ha $num_dias dias e $horas_up:$min_up horas");
+   print ("System Uptime : $num_dias day(s) $horas_up hour(s) $min_up minute(s)");
+   exit 0;
+}

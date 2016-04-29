@@ -1,0 +1,102 @@
+#!/usr/bin/perl
+#
+# 2001-12-26 Nereu
+# 2002-03-06 Nereu - lista de excluidos podendo ser uma "regular expression"
+# 2012 - Nereu - acerto LVM
+
+# Testado: Linux e Solaris
+#
+# O script espera que a saida do df seja algo como:
+# Filesystem kbytes  used avail capacity  Mounted_on
+
+# Default: todos os fs e...
+$pwarn=90;
+$pcrit=95;
+
+if ( $#ARGV >= 0 ) {
+  for($i=0;$i<=$#ARGV;$i++) {
+    if ( $ARGV[$i] =~ /^-w/ ) {
+      @cmd = split(/:/,$ARGV[$i]); 
+      if ( $#cmd == 1 && $cmd[1] > 0 ) { $pwarn=$cmd[1] } ;
+    } elsif ( $ARGV[$i] =~ /^-c/ ) {
+      @cmd = split(/:/,$ARGV[$i]);
+      if ( $#cmd == 1 && $cmd[1] > 0 ) { $pcrit=$cmd[1] } ;
+    } elsif ( $ARGV[$i] =~ /^-[x|X|e|E]/ ) {
+      @cmd = split(/:/,$ARGV[$i]);
+      for($j=1;$j<=$#cmd;$j++) { $excl_list[$j-1]=$cmd[$j]; }
+    } elsif ( $ARGV[$i] =~ /^-[hH?]/ ) {
+      print "Sintaxe: check_fs [-w:90] [-c:95] [-x:fs1:fs2:...:fsN]\n";
+      exit(-1);
+    }
+  }
+}
+
+if ( $pwarn > $pcrit ) {
+  print "Erro na parametrizacao. Perct Critica($pcrit) deve ser > Perct Atencao($pwarn).\n";
+  exit(-1);
+}
+
+$FS_C=""; $FS_W="";
+
+if ( $^O eq "aix" ) {
+  $parametro = "-P"; }
+else {
+  $parametro = "-k"; }
+
+# Filesystem            kbytes    used   avail capacity  Mounted_on
+if (open(DF,"/bin/df $parametro |")) {
+  while ( <DF> ) {
+    @df_column = split;
+    next if ( $#df_column == 0 );
+    if ( $#df_column == 4 ) { $perc_column=3; $fs_column=4 } else { $perc_column=4; $fs_column=5; }
+    if ( check_it($df_column[$fs_column]) ) {
+      if ( $df_column[ $perc_column] =~ /[0-9]\%/ ) { $p=$df_column[$perc_column]; chop($p); } else { $p = 0 }
+      #print STDERR "FS: $df_column[$fs_column] $p%\n";
+      if ( $p >=$pcrit ) {
+        $FS_C.="$df_column[$fs_column]($p%),";
+      }
+      if ( $p >= $pwarn && $p < $pcrit ) {
+        $FS_W.="$df_column[$fs_column]($p%),";
+      }
+    }
+  }
+  close(DF);
+
+  chop($FS_C); chop($FS_W);
+
+  if ( $FS_C ne "" ) {
+    print "Existe(m) FS em estado critico: $FS_C";
+    if ( $FS_W ne "" ) {
+      print " e em estado de atencao: $FS_W.\n";
+    } else { 
+      print ".\n";
+    }
+    exit(2);
+  } elsif ( $FS_W ne "" ) {
+    print "Existe(m) FS em estado de atencao: $FS_W.\n";
+    exit(1);
+  } else {
+    print "Ok! Todos os file systems dentro dos limites(W=$pwarn% e C=$pcrit%).\n";
+    exit(0);
+  }
+} else {
+  print "check_fs: nao consegui abrir a saida do comando 'df -k'.\n";
+  exit(-1);
+}
+
+###
+
+sub check_it {
+
+ local ( $fs ) = ( $_[0] );
+ local $j;
+
+ for($j=0;$j<=$#excl_list;$j++) {
+   if ( $fs =~ /$excl_list[$j]/ ) {
+     return 0 ;
+   }
+ }
+
+ return 1;
+}
+

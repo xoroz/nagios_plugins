@@ -1,0 +1,129 @@
+#!/bin/sh
+# Original script at https://code.google.com/p/check-tomcat-sessions/source/browse/check_tomcatSessions
+
+# Modified by Felipe Ferreira http://felipeferreira.net 12/2014
+
+# Set some defaults
+R=`date +%s | sha256sum | base64 | head -c 4`
+TMP="/tmp/tom_${R}.tmp"
+VERSION="2.0"
+USERNAME=Administrator
+PASSWORD=password
+SERVER=localhost
+PORT=8080
+WARNING_LEVEL=100
+CRITICAL_LEVEL=400
+TOMCAT_VERSION="6"
+
+usage ()
+{
+   echo "Usage: `basename $0` [ -H hostname or IP address ] [ -P port ] [ -u username ] [ -p password ] [ -w warning ] [ -c critical ] [ -V tomcat_version (6 for tomcat pre-7 or 7) ]" >&2
+   echo ""
+   exit 0
+}
+
+version ()
+{
+   echo "`basename $0` $THE_VERSION"
+}
+
+# MAIN
+
+while getopts ":u:p:H:P:w:c:V:hv" opt
+do
+   case "$opt" in
+      u)
+         USERNAME="$OPTARG"
+      ;;
+      p)
+         PASSWORD="$OPTARG"
+      ;;
+      H)
+         SERVER="$OPTARG"
+      ;;
+      P)
+         PORT="$OPTARG"
+      ;;
+      w)
+         WARNING_LEVEL="$OPTARG"
+      ;;
+      c)
+         CRITICAL_LEVEL="$OPTARG"
+      ;;
+      h)
+         usage
+         exit 1
+      ;;
+      V)
+         TOMCAT_VERSION="$OPTARG"
+      ;;
+      v)
+         version
+         exit 1
+      ;;
+   esac
+done
+
+
+case $TOMCAT_VERSION in
+   6):
+      NUMSESS_PATH="manager/list"
+      ;;
+   7)
+      NUMSESS_PATH="manager/text/list"
+      ;;
+   *)
+      echo "Available versions are: "
+      echo "   6 (default: all tomcat pre-7)"
+      echo "   7 tomcat 7"
+      exit 1
+      ;;
+esac
+
+
+########## MAIN #############################################
+
+if [ $# -eq 0 ] ; then
+   usage
+   exit 2
+fi
+
+URL="http://${SERVER}:${PORT}/manager/status"
+`curl -s --user ${USERNAME}:${PASSWORD} $URL > $TMP` 
+
+MT=`cat $TMP |awk -F"<p>" '{ print $4 }' |awk '{ print $3 }'|sed 's/^[ \t]*//;s/[ \t]*$//' |sed '/^$/d;s/[[:blank:]]//g'`
+CT=`cat $TMP |awk -F"<p>" '{ print $4 }' |awk '{ print $7 }'|sed 's/^[ \t]*//;s/[ \t]*$//' |sed '/^$/d;s/[[:blank:]]//g'`
+BT=`cat $TMP |awk -F"<p>" '{ print $4 }' |awk '{ print $11 }'|cut -d\< -f1|sed '/^$/d;s/[[:blank:]]//g'`
+
+
+#remove my own thread
+if [ "$BT" -gt "0" ];then 
+  BT=`expr $BT - 1`
+# echo "BT = $BT"
+fi
+
+#validate
+T=`cat $TMP |awk -F"<p>" '{ print $4 }' |grep -c "threads"`
+
+#DEBUG
+#echo "cat $TMP |awk -F'<p>' '{ print $3 }' |awk '{ print $11 }'|cut -d\< -f1|sed '/^$/d;s/[[:blank:]]//g'"
+rm -f $TMP
+#echo $TMP
+
+
+if [ -z "$CT" ] || [ "$T" -eq "0" ]; then
+   echo "UNKOWN - Thread numbers not found, verify tomcat $SERVER $PORT or script "
+   exit 3
+fi
+MSG="Tomcat $SERVER $PORT,  Threads Max = $MT, Current = $CT, Busy = $BT |Current=$CT,Busy=$BT"
+if [ "$BT" -gt "$CRITICAL_LEVEL" ]; then
+   echo "CRITICAL - $MSG"
+   exit 2
+elif [ "$BT" -gt "$WARNING_LEVEL" ]; then
+   echo "WARNING - $MSG"
+   exit 1
+else
+   echo "OK - $MSG"
+   exit 0
+fi
+

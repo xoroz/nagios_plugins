@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# Verifica qnt tempo cada Full Garbage Collector leva, e calcula a cada qnt tempo executa um!
+# Felipe Ferreira Jan 2016
+#
+# Req. jps, jstat
+
+#debug=1
+
+PID=`su - eceowl -c 'jps | grep -iv jps|cut -d " " -f1'`
+if [ -z "$PID" ]; then
+	echo "UNKOWN - Nao foi possivel pegar o PID do processo java"
+	exit 1
+fi
+#T=`jstat -gcutil $PID 100 1 `
+T=`su - eceowl -c "jstat -gc -t $PID 1000  1"`
+
+TEMPTOTAL=`echo $T |awk '{ print \$17 }' |tail -n 1 | awk -F '.' '{ print \$1}'`
+
+FGC=`echo $T  |awk '{ print $(NF - 2) }' |tail -n 1`
+FGCT=`echo $T  |awk '{ print $(NF - 1) }' |tail -n 1 |awk -F "." '{ print $1}'`
+
+if [ $FGCT -ge 1 ] ; then
+# pega a media de tempo, FGCT (total acumulado) / FGC(quantas vezes o GC rodou)
+	TEMPOGC=`echo $FGCT / $FGC | bc`
+        TEMPOGC=`echo "scale=3; $FGCT / $FGC" | bc -l`
+else
+	TEMPOGC=0
+fi
+
+CADATGC=`expr $TEMPTOTAL / $FGC`
+WARN=$1
+CRIT=$2
+
+if [ ! -z $debug ]; then
+echo "DEBUG:"
+echo "TEMPOTOTAL $TEMPOTOTAL"
+echo "TEMPOGC $TEMPOGC"
+echo "FGC $FGC"
+echo "FGCT $FGCT"
+echo "CADATGC $CADATGC"
+fi
+
+MSG="Ultimo FGC gasta $TEMPOGC segundos, a cada $CADATGC seg faz um FGC|tempogc=$TEMPOGC;$WARN;$CRIT"
+
+if [ $(echo " $TEMPOGC > $CRIT" | bc) -eq 1 ]; then
+    echo "CRITICAL - $MSG"
+    exit 2
+elif [ $(echo " $TEMPOGC > $WARN" | bc) -eq 1 ]; then
+
+    echo "WARNING - $MSG"
+    exit 1
+else
+    echo "OK - $MSG"
+    exit 0
+fi
+
