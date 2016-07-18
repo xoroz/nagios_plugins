@@ -1,0 +1,58 @@
+#!/bin/bash
+# script to check the average of last hour of how long in ms an apache requests takes 
+# Felipe Ferreira June 2012
+# Update 07/2016
+
+# IMPORTANT: MUST SET APACHE TO LOG TIMETAKEN EX:
+# LogFormat "%h %l %u %t \"%r\" %>s %b %D"  common
+
+dia=`date +%d`
+mesd=`date +%b`
+ano=`date +%Y`
+hora=`date +%H -d  "1 hour ago"`
+
+tday="$dia/$mesd/$ano:$hora"
+logfile="/var/log/httpd/demopa-access.log"
+
+if [ "$3" == "" ]
+then
+  echo -e "\n Syntax: $0 <logfile> <Warning> <Critical> \nes.: $0 /var/log/httpd/demopa-access.log 300 500 \n The script gets average server response time for the specifed number of lines\n"
+  exit 3
+fi
+
+logfile=$1
+warn=$2
+crit=$3
+
+#check if file exists
+if [ ! -f $logfile ]; then
+        echo "UNKWON - file $logfile not found, maybe no access yet."
+        exit 3
+fi
+
+if [[ $(grep -c $tday $logfile) = 0 ]]; then
+        echo "OK - file $logfile found, but no recent requestes|tempo=0"
+        exit 0
+fi
+
+TEMPO=$(grep "$tday" $logfile |awk '{ print $NF }' |grep -v 0 |awk '{ sum += $NF; n++ } END { if (n > 0) print sum / n; }' |cut -d"." -f1)
+QNT_LINES=$(grep -c "$tday" $logfile)
+#echo "TEMPO MICROSECONDS: $TEMPO QNT REQ: $QNT_LINES"
+TEMPO=$(expr $TEMPO / 1000)
+#echo "TEMPO MILESCONDS: $TEMPO QNT REQ: $QNT_LINES"
+
+if [ -z "$TEMPO" ]; then
+ TEMPO=0
+fi
+
+MSG="The response time average is $TEMPO ms for the last $QNT_LINES requests|tempo=$TEMPO"
+if [ $TEMPO -ge $crit ]; then
+ echo "CRITICAL - $MSG"
+ exit 2
+elif [ $TEMPO -ge $warn ]; then
+ echo "WARNING - $MSG"
+ exit 1
+else
+ echo "OK - $MSG"
+ exit 0
+fi
