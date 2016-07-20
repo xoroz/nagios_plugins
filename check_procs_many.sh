@@ -6,15 +6,8 @@
 
 # fix 06/07/2016 - grep and su showing on ps
 
-SERVICE="$1"
-USER="$2"
 i=0
 TMP="/tmp/.check_many.tmp"
-if [ -z $USER ]; then
-        echo "UNKONW - Please set SERVICE and USER arguments"
-        exit 3
-fi
-
 #GET ARGUMENTS AND SPLIT USER:SERVICE INTO AN ARRAY
 for word in "$@"
 do
