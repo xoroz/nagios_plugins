@@ -1,0 +1,74 @@
+#!/bin/bash
+#
+# Monitor multiple ports
+# Requiers nc
+# Felipe Ferreira 07/2016
+
+TRUNTIME=0
+MSG=""
+
+function help() {
+ echo "$0 <server> <time> <port> <port>"
+ echo "$0 nagios 300 80 443"
+ exit 1;
+}
+
+if [ $# -lt 2 ];then
+ help
+fi
+
+for word in "$@"
+do
+ for args in $word
+ do
+  AP[$i]="$args"
+  i=$(expr $i + 1)
+ done
+done
+
+#GO THRU ARRAY
+#echo " go thru array"
+i=0
+E=${#AP[@]}
+if [ $E -lt 3 ]; then
+ echo "UNKOWN - wrong number of arguments"
+ help
+fi
+
+SERVER=${AP[$i]}
+i=$(expr $i + 1)
+TIME=${AP[$i]}
+i=$(expr $i + 1)
+while [ $i -lt $E ]
+do
+ PORT=${AP[$i]}
+ TS=$(date +%s%3N)
+# echo "Checking $SERVER $PORT less then $TIME"
+ check_port=$(nc -n -w 2 -z $SERVER $PORT 2>&1; echo -n "|EXIT:"$?)
+ IFS="|";
+ exit_code=$(echo -e $check_port|grep "EXIT:"|awk -F":" '{print $2}')
+ result=$(echo $check_port|grep -v "EXIT:")
+ TE=$(date +%s%3N)
+ #echo "TE $TE TS $TS"
+ RUNTIME=$(($TE-$TS))
+# echo "RUNTIME: $RUNTIME"
+
+ if [[ $exit_code == 0 ]]; then
+  MSG="port $PORT(${RUNTIME}ms) $MSG"
+ else
+  echo "CRITICAL - $SERVER $PORT failed - critical|time="$RUNTIME"ms"
+  exit 2
+ fi
+ i=$(expr $i + 1)
+ TRUNTIME=$(($TRUNTIME+$RUNTIME))
+done
+
+if [ $TRUNTIME -gt $TIME ]; then
+ MSG="CRITICAL - took longer then $TIME to connecto to $SERVER $MSG  |time="$TRUNTIME"ms"
+ echo $MSG
+ exit 2
+fi
+
+MSG="OK - $SERVER $MSG"
+echo "$MSG|ports_ms=$TRUNTIME"
+exit 0
