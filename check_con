@@ -1,0 +1,27 @@
+#!/bin/bash
+#
+# Felipe Ferreira 25/07/2016
+# Check number of ESTABLISHED connections in a defined port
+
+PORT=$1
+WARN=$2
+CRIT=$3
+
+if [ -z $3 ]; then
+        echo "UNKONWN - please pass 3 args, PORT, Warning, Critical"
+        exit 3
+fi
+
+R=$(ss -n  | grep ESTAB | grep -c ":${PORT} ")
+
+MSG=" $R total established conn on port $PORT|conn=$R"
+if [ $R -gt $CRIT ]; then
+ echo "CRITICAL - $MSG"
+ exit 2
+elif [ $R -gt $WARN ]; then
+ echo "WARNING - $MSG"
+ exit 1
+fi
+echo "OK - $MSG"
+exit 0
+
