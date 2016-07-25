@@ -1,5 +1,0 @@
-#!/bin/bash
-#Get current estabilished connections on Port 80
-
-result=`netstat -an | grep ":8080"| grep -c EST`
-echo "Conexoes Totais = $result |Conexoes=$result"
