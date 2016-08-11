@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+# Uses pyspeedtest to test internet speed and format for nagios
+#
+# Felipe Ferreira 08/2016
+
+# There is a list of servers here http://www.speedtest.net/speedtest-servers.php
+
+if [[ $(which pyspeedtest |grep -c "no pyspeedtest") > 0 ]]; then
+ echo "UNKOWN - pyspeedtest script not found, try: pip install pyspeedtest"
+ exit 3
+fi
+
+downw=$1
+downc=$2
+upw=$3
+upc=$4
+
+SERVER="speedtest.tecnoadsl.it"
+RUNS=8
+TMP=".speedtest.$SERVER.$RANDOM"
+
+if [  -z $4 ]; then
+ echo "UNOKNWN - Please pass all 6 paramateres $0 <ping_warn> <ping_crit> <download_warn> <download_crit> <upload_warn> <upload_crit>"
+ exit 3
+fi
+
+R=$(pyspeedtest -s $SERVER -r $RUNS > $TMP  2>&1)
+#echo $TMP
+P=$(grep Ping $TMP |awk '{ print $(NF -1) }')
+D=$(grep Download $TMP |awk '{ print $(NF -1)}' |awk -F"." '{print $1}' )
+U=$(grep Upload $TMP |awk '{ print $(NF -1) }'  |awk -F"." '{print $1}' )
+
+MSG="TestServer: $SERVER Ping $P ms Download $D Mbps Upload $U Mbps |Download=$D;Upload=$U"
+rm -f $TMP
+
+if [ $D -lt $downc ] || [ $U -lt $upc ]; then
+ echo "CRITICAL - $MSG"
+ exit 1
+elif [ $D -lt $downw ] || [ $U -lt $upw ]; then
+ echo "WARNING - $MSG"
+ exit 2
+else
+ echo "OK - $MSG"
+ exit 0
+fi
