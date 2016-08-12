@@ -36,10 +36,10 @@ rm -f $TMP
 
 if [ $D -lt $downc ] || [ $U -lt $upc ]; then
  echo "CRITICAL - $MSG"
- exit 1
+ exit 2
 elif [ $D -lt $downw ] || [ $U -lt $upw ]; then
  echo "WARNING - $MSG"
- exit 2
+ exit 1
 else
  echo "OK - $MSG"
  exit 0
