@@ -1,0 +1,48 @@
+#!/bin/bash
+# Script to check if RedHat cluster has failed over
+# Felipe Ferreira Jan 2013
+# ver 1.0
+
+if [ ! $# == 1 ]; then
+echo "Usage check_cluster <cluster_service_name>"
+exit 2
+fi;
+
+clu_srv=$1
+service1=`/usr/sbin/clustat|grep $clu_srv| awk {'print $1'}`
+service=`/usr/sbin/clustat|grep -c $clu_srv`
+if [ $service -eq 0 ]; then
+ echo "CRITICAL - Service $clu_srv not running"
+ exit 2
+fi
+
+host1=`/usr/sbin/clustat|grep $1| awk {'print $2'}`
+tmpfile=".tmp_check_cluster_${clu_srv}.log"
+tmpfile2=".tmp_check_cluster2_${clu_srv}.log"
+
+echo $service1 $host1 > $tmpfile2
+
+if [ -f  $tmpfile ] && [ -f  $tmpfile2 ]; then
+ DIFF=`diff $tmpfile $tmpfile2`
+else
+ echo "UNKOWN - This is the first run"
+ touch $tmpfile
+ touch $tmpfile2
+ echo $tmpfile
+ echo $tmpfile2
+ exit 3
+fi
+
+#limpa output
+DIFF=`echo $DIFF |cut -d ">" -f2`
+host1=`echo $host1 |cut -d "-" -f1`
+service1=`echo $service1 |cut -d":" -f2`
+
+mv $tmpfile2 $tmpfile
+if [ ! -z "${DIFF}" ]; then
+ echo "CRITICAL - Cluster $clu_srv did failover to $host1"
+ exit 2
+else
+ echo "OK - Cluster $clu_srv still on the same server $host1"
+ exit 0
+fi
