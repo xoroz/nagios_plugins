@@ -10,7 +10,7 @@ fi;
 
 clu_srv=$1
 service1=`/usr/sbin/clustat|grep $clu_srv| awk {'print $1'}`
-service=`/usr/sbin/clustat|grep -c $clu_srv`
+service=`/usr/sbin/clustat|grep started|grep -c $clu_srv`
 if [ $service -eq 0 ]; then
  echo "CRITICAL - Service $clu_srv not running"
  exit 2
