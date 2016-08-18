@@ -36,6 +36,13 @@ if [ $E -lt 3 ]; then
 fi
 
 SERVER=${AP[$i]}
+re='^[0-9]+([.][0-9]+)?$'
+if ! [[ $SERVER =~ $re ]] ; then
+# echo "Geting IP address"
+ SERVER=$(getent hosts $SERVER|awk '{ print $1}')
+# echo $SERVER
+fi
+
 i=$(expr $i + 1)
 TIME=${AP[$i]}
 i=$(expr $i + 1)
