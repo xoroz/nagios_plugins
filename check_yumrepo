@@ -8,19 +8,21 @@
 TMP="/tmp/.yumrepo"
 
 yum clean all 2&>1 >/dev/null
-### if u need specific one use: yum -c /repo/conf/yum.conf repolist > $TMP 2&>1
 
-yum  repolist > $TMP 2&>1
-if [ $? -ne 0 ]; then
-        MSG=$(tail -n 2 $TMP)
+yum repolist > $TMP 2>$TMP.ERR
+
+if [ -f $TMP.ERR ] && [[ $( wc -l $TMP.ERR ) > 1 ]]; then
+        MSG=$(tail -n 1 $TMP.ERR)
         echo "ERROR - Something is wrong with a repo $MSG"
-        rm $TMP
+        rm $TMP.ERR && rm $TMP
         exit 2
-else
+elif [ -f $TMP ]; then
         T=$(cat $TMP |wc -l)
         T=$(expr $T - 3)
         echo "OK - All $T epos are working"
-        rm $TMP
+        rm $TMP && rm $TMP.ERR
         exit 0
+else
+        echo "UNKOWN - Could not determine the status of the repository"
+        exit 1
 fi
-
