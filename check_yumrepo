@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+#
+# Felipe Ferreira 08/2016
+# check if a yum repository is working correctly
+
+
+TMP="/tmp/.yumrepo"
+
+yum clean all 2&>1 >/dev/null
+### if u need specific one use: yum -c /repo/conf/yum.conf repolist > $TMP 2&>1
+
+yum  repolist > $TMP 2&>1
+if [ $? -ne 0 ]; then
+        MSG=$(tail -n 2 $TMP)
+        echo "ERROR - Something is wrong with a repo $MSG"
+        rm $TMP
+        exit 2
+else
+        T=$(cat $TMP |wc -l)
+        T=$(expr $T - 3)
+        echo "OK - All $T epos are working"
+        rm $TMP
+        exit 0
+fi
+
