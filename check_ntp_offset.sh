@@ -5,6 +5,8 @@
 # Simple NTPD offset local check
 # Version 2.0 fix check if ntpd service is running
 # Version 3.0 added support for chronyd get correctly tail, find out first how many timed servers are configured
+# Version 4.0 fix bug when chronyc sourcestats outputs is not in milesconds
+    #ns (indicating nanoseconds), us (indicating microseconds), ms (indicating milliseconds), or s (indicating seconds).
 
 limit=$1   # Set your limit in milliseconds here otherwise it will be 4 seconds
 count=0
