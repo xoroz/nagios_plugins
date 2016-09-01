@@ -31,6 +31,9 @@ if [[ $(id chrony 2> /dev/null |grep -c uid ) > 0 ]] && [[ $(ps -u chrony -f |gr
  elif [[ $(echo $offsets |grep -c us) = 1 ]]; then
 #  echo " found us (time unit) lower then 1ms so OK"
    offsets=0
+ elif [[ $(echo $offsets |grep -c ns) = 1 ]]; then
+#  echo " found ns (nano seconds unit) lower then 1ms so OK"
+   offsets=0
  fi
  MSG="chronyd"
 else
