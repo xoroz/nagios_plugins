@@ -18,6 +18,18 @@ if [[ $(id chrony 2> /dev/null |grep -c uid ) > 0 ]] && [[ $(ps -u chrony -f |gr
  countd=$(chronyc sourcestats |wc -l)
  countd=$(echo $countd - 3|bc)
  offsets=$( chronyc sourcestats |awk '{ print $(NF -1) }' |tail -n $countd |sed 's/ms//g' | tr -d '-' |tr -d '+')
+ offsets=$( chronyc sourcestats |awk '{ print $(NF -1) }' |tail -n $countd | tr -d '-' |tr -d '+')
+  if  [[ $(echo $offsets |grep -o '[0-9:]s' |grep -c s ) = 1 ]]; then
+#   echo " found s (seconds unit), should multiply by 1000"
+   offsets=$(echo $offsets|sed 's/s//g')
+   SECONDS=1
+  elif  [[ $(echo $offsets |grep -c 'ms ' ) = 1 ]]; then
+#   echo " found ms (mileseconds unit)"
+   offsets=$(echo $offsets|sed 's/ms//g')
+ elif [[ $(echo $offsets |grep -c us) = 1 ]]; then
+#  echo " found us (time unit) lower then 1ms so OK"
+   offsets=0
+ fi
  MSG="chronyd"
 else
  if [[ $(ps -u ntp -f |grep -c ntpd) -eq 0  ]]; then
@@ -42,14 +54,18 @@ fi
 
 # LOOP THRU ALL OFFSETS AND CHECK IF ANY IS HIGHER THEN IT SHOULD
 for offset in ${offsets}; do
- #  echo "OFFSET $offset"
-    if [ $(echo " $offset > $limit" | bc) -eq 1 ]; then
-        echo "CRITICAL - $MSG offset of $offset ms is NOT fine|ntpoffset=$offset"
-        exit 2
-    fi
+ if [ $SECONDS -eq 1 ] && [[ $(echo $offset |grep -oc '[0-9:]m' ) != 1 ]] ; then
+  offset=$(echo "scale=3;${offset} * 1000" | bc)
+ elif [[ $(echo $offset |grep -oc '[0-9:]m' ) = 1 ]] ; then
+  offset=$(echo $offset |grep -o '[0-9:]*')
+ fi
+ if [ $(echo " $offset > $limit" | bc) -eq 1 ]; then
+  echo "CRITICAL - $MSG offset of $offset ms is NOT fine|ntpoffset=$offset"
+  exit 2
+ fi
 #get average offset
-    total=$(echo $total+$offset | bc )
-    ((count++))
+ total=$(echo $total+$offset | bc )
+ ((count++))
 done
 
 offset=$(echo "scale=0; $total / $count" | bc)
