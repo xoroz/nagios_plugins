@@ -1,0 +1,41 @@
+#!/bin/bash
+# bash simple script to get the varnish 3 hit_ratio
+# by Felipe Ferreira Mar/2014
+
+# update 08/2016 - VARNISH 4.1
+
+
+if [ $# -ne 2 ]; then
+# set default hit_ratio thresholds
+CRIT=90
+WARN=95
+else
+CRIT=$1
+WARN=$2
+fi
+
+T=`varnishstat -1 -f MAIN.client_req |awk '{print $2 }'`
+M=`varnishstat -1 -f MAIN.cache_hit |awk '{print $2 }' `
+#MAIN.cache_hit
+#echo "Total  req: " $T
+#echo "Total  hit: " $M
+
+R1=`perl -e "printf('%.2f',100*${M})"`
+R3=`perl -e "printf('%.2f',${R1}/${T})"`
+#R3=`perl -e "printf('%.2f',100-${R2})"`
+
+MSG="${R3}% hit_ratio|hit_ratio=${R3}"
+H=`perl -e "printf('%.0f',${R3})"`
+#echo "DEBUG: $H $CRIT $WARN"
+
+if [ "$H" -le "$CRIT" ]; then
+    echo "CRITICAL - $MSG"
+    exit 2
+fi
+if [ "$H" -le "$WARN" ]; then
+    echo "WARNING - $MSG"
+    exit 1
+else
+    echo "OK - $MSG"
+    exit 0
+fi
