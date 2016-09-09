@@ -1,37 +1,60 @@
 #!/bin/bash
-#
-# Uses pyspeedtest to test internet speed and format for nagios
-#
+# Uses pyspeedtest or speedtest-cli to test internet speed and format for nagios
 # Felipe Ferreira 08/2016
-
-# There is a list of servers here http://www.speedtest.net/speedtest-servers.php
-
-if [[ $(which pyspeedtest |grep -c "no pyspeedtest") > 0 ]]; then
- echo "UNKOWN - pyspeedtest script not found, try: pip install pyspeedtest"
- exit 3
-fi
+# Version 2.0 - allows use of two different tools now
 
 downw=$1
 downc=$2
 upw=$3
 upc=$4
 
-SERVER="speedtest.tecnoadsl.it"
-RUNS=8
+## SOME OF THE SERVERS I USE
+#id="3837" sp1.wind.it:8080 DESC="Rome Italia Wind "
+#id="6512" speedtest.tecnoadsl.it:8080 DESC="Telecom Italia S.p.A. (Perugia, Italy) [23.00 km]"
+#id="5470" speedtestpg1.telecomitalia.it:8080
+#id="9636" speedtestfi1.telecomitalia.it:8080 DESC="Telecom Italia S.p.A. (Florence, Italy) [99.02 km]"
+#id="3676" speedtest-rma.clouditalia.com:8080 DESC="Clouditalia S p A (Rome, Italy) [142.40 km]"
+# There is a FULL list of servers here http://www.speedtest.net/speedtest-servers.php
+
+#TIP: Too make speedtest-cli work without opening outbound to any I downloaded set to local web folder 2 xml files
+# ://<MYSERVER>/speedtest-servers-static.xml
+# ://centreon/c/speedtest-config.xml
+###########EDIT HERE##############
+SERVERID=3837
+SERVER="sp1.wind.it"
+TOUT=50             # only for speedtest-cli
+RUNS=8              # only for pyspeedtest
+
+
 TMP=".speedtest.$SERVER.$RANDOM"
 
 if [  -z $4 ]; then
- echo "UNOKNWN - Please pass all 6 paramateres $0 <ping_warn> <ping_crit> <download_warn> <download_crit> <upload_warn> <upload_crit>"
+ echo "UNOKNWN - Please pass all 4 paramateres $0 <download_warn> <download_crit> <upload_warn> <upload_crit>"
  exit 3
 fi
 
-R=$(pyspeedtest -s $SERVER -r $RUNS > $TMP  2>&1)
-#echo $TMP
+PWD=$(pwd)
+PWD="/usr/lib/nagios/plugins"
+SCRIPT="${PWD}/speedtest-cli"
+if [ -f $SCRIPT ]; then
+ CMD="$SCRIPT --server $SERVERID --timeout $TOUT --simple  > $TMP  2>&1"
+elif [[ $(command -v pyspeedtest >/dev/null 2>&1) ]]; then
+ SCRIPT="pyspeedtest"
+ CMD="$SCRIPT -s $SERVER -r $RUNS > $TMP  2>&1"
+else
+ echo "UNKONW - could not find requirements: speedtest-cli or pyspeedtest "
+ echo "Download speedtest-cli https://github.com/sivel/speedtest-cli"
+ echo "Download: pyspeedtest  https://github.com/fopina/pyspeedtest"
+ exit 3
+fi
+
+#echo $CMD
+R=$(eval $CMD)
 P=$(grep Ping $TMP |awk '{ print $(NF -1) }')
 D=$(grep Download $TMP |awk '{ print $(NF -1)}' |awk -F"." '{print $1}' )
 U=$(grep Upload $TMP |awk '{ print $(NF -1) }'  |awk -F"." '{print $1}' )
 
-MSG="TestServer: $SERVER Ping $P ms Download $D Mbps Upload $U Mbps |Download=$D;Upload=$U"
+MSG="TestServer: $SERVER Ping $P ms Download $D Mbit/s Upload $U Mbit/s |Download=$D;Upload=$U"
 rm -f $TMP
 
 if [ $D -lt $downc ] || [ $U -lt $upc ]; then
