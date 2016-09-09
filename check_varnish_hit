@@ -19,6 +19,10 @@ M=`varnishstat -1 -f MAIN.cache_hit |awk '{print $2 }' `
 #MAIN.cache_hit
 #echo "Total  req: " $T
 #echo "Total  hit: " $M
+if [ -z $T ] || [ -z $M ]; then
+ echo "UNKOWN - Could not get the varnish client_req or varnish_hit information from varnishstat cmd"
+ exit 3
+fi
 
 R1=`perl -e "printf('%.2f',100*${M})"`
 R3=`perl -e "printf('%.2f',${R1}/${T})"`
