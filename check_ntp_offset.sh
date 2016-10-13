@@ -1,3 +1,4 @@
+#!/bin/bash
 # Check NTPD offset
 #
 # Felipe Ferreira
@@ -43,7 +44,8 @@ else
  else
   countd=$(ntpq -nc peers |wc -l)
   countd=$(echo $countd - 2|bc)
-  offsets=$(ntpq -nc peers | tail -n $countd | cut -c 62-66 | tr -d '-')
+#  offsets=$(ntpq -nc peers | tail -n $countd | cut -c 62-66 | tr -d '-')
+  offsets=$(ntpq -nc peers | tail -n $countd | awk '{ print $( NF -1) }' | tr -d '-' |awk -F"." '{ print $1 }')
   MSG="NTPD"
  fi
 fi
