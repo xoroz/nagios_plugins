@@ -7,6 +7,11 @@
 
 # IMPORTANT: Requires iostat
 
+#Example
+#./check_io_disk.sh sdc 20.0 28.0
+# OK -  Disk sdc await time is 8.0 ms | await=8.0
+
+
 DISK=$1
 WARN=$2
 CRIT=$3
