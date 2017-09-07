@@ -11,7 +11,7 @@ DISK=$1
 WARN=$2
 CRIT=$3
 
-R=$(iostat -d $DISK -xmt  2 3 |grep $DISK |  awk '{ sum += $10; n++ } END { if (n > 0) print sum / n; }' |cut -c 1-3)
+R=$(iostat -d $DISK -xmt  2 4 |  awk '{ sum += $10; n++ } END { if (n > 0) print sum / n; }' |cut -c 1-3)
 
 if [ -z $R ]; then
         echo "UNKOWN - Error to get iostat info for disk $DISK"
