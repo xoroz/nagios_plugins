@@ -27,7 +27,7 @@ SLEEP="10"
 ERRORCOUNTCRIT=2   # only after two 'consecutive' errors it should send out email
 ADDRESS_WAN=google.it
 ADDRESS_LAN=172.31.0.123
-EMAILTO="felipe.ferreira@iit.it"
+EMAILTO="felipe.ferreira@bobo.com.br"
 ##############################
 CRIT=$1
 if [ "$SNAME" == "wan" ]; then
@@ -68,8 +68,8 @@ sendme() {
  SUBJ=$1
  MAILB=$2
  TM="/$FDIR/mailtest"
- echo "From: network_check@iit.local" > "$TM"
- echo "To: felipe.ferreira@iit.it" >> "$TM"
+ echo "From: network_check@bbb.local" > "$TM"
+ echo "To: $EMAILTO" >> "$TM"
  echo "$SUBJ" >> $TM
  echo "" >> $TM
  echo $MAILB >> $TM
