@@ -1,0 +1,380 @@
+<job id="j1">
+  <script language="JScript">
+      function SortVBArray(arrVBArray){
+          return arrVBArray.toArray().sort(function(a,b){
+              //get the leading number:
+              a = parseInt(a.split(";")[0],10)
+              b = parseInt(b.split(";")[0],10)
+              if(a < b)
+                  return 1
+              if(a > b)
+                  return -1
+              return 0
+              
+          }).join("|");
+      }
+  </script>
+<script language="VBScript">
+'Atuhor Felipe Ferreira
+'Date:  21/11/2007 updated 02/11/08
+'Version 9.0
+
+'This script will generate a List of all Top Email Senders by default of yestaday,
+'Get Top SPammers/Emails Sent Out and Send Output Via Email.
+
+
+'TO DO(nagios version):
+'1.Clean up Useless CODE, OK
+'2.Better Argument Handlers, OK
+'3.If first time, need to register logparser.dll, OK
+'4.Get ServerName from argument, OK
+'5-Dont user .mdb, can sort list with JScript method
+
+
+Const ForReading=1,ForWriting=2,ForAppending=8,adLockOptimistic = 3,adOpenDynamic = 1
+Const adOpenStatic = 3
+Const adUseClient = 3
+Const intOK = 0
+Const intICritical = 2
+Const intIWarning = 1
+Const intUnknown = 3
+Dim File 
+Dim strScriptFile : strScriptFile = WScript.ScriptFullname
+Dim sPath : sPath = Left(strScriptFile, Len(strScriptFile) - Len(WScript.Scriptname)) 
+Dim nomelog, i
+Dim objFSO ,body
+Dim intWarning,intCritical
+Dim SpammersCnt : SpammersCnt = 0
+dim intSpamTot : intSpamTot  = 0
+Dim outputmsg
+Dim item
+Public arrOut()
+'@@@@@@@@@@FILE NAMES@@@@@@@@
+Dim strFileTop : strFileTop = "TopSpammers.txt"
+Dim outputfile : outputfile = spath & "Spammers.txt"
+Dim argcountcommand
+Dim arg(10)
+
+'@@@@@@@@@@----------EDIT-------------@@@@@@@@@@@@@
+Dim Verbose : Verbose = 0 '=1 Display Msgs, =0 QUIET MODE
+Dim intSpamMin : intSpamMin = 1   'More then 500 a day(24hr) is considered SPAMMER
+Dim intTopSpam : intTopSpam = 3    'How many of Top Spammers to report
+Dim intDaySpam : intDaySpam = 1     'How many days ago to check (ONLY SAME MONTH), default yestarday
+Dim strLDAP 			    'NOW AUTOMATIC: strLDAP = "'" & "LDAP://GC.DOMAIN.local/DC=local" & "'"
+Dim serverOUT 		    'Single SMTP OUT Servers, nagios only One
+'@@@@@@@@@@----------EDIT-------------@@@@@@@@@@@@@
+
+
+'@@@@@@@@@@@ HANDLES THE ARGUMENTS @@@@@@@@@@@@@@@
+GetArgs()
+if(argcountcommand = 3) then		
+	serverOUT = CStr(wscript.arguments(0))
+	intWarning = CDbl(wscript.arguments(1))
+	intCritical = CDbl(wscript.arguments(2))
+end if
+
+call GetLDAP()
+wscript.sleep 100
+
+'______________LOGPARSER
+err.clear
+Dim objLogParser : Set objLogParser = CreateObject("MSUtil.LogQuery")
+if err.number <> 0 then
+	DisplayMsg "ERROR, Download and registrer logparser.dll"
+	CheckFiles "logparser.dll"
+	wscript.quit(interr)
+end if
+Dim objInputFormat : Set objInputFormat = CreateObject("MSUtil.LogQuery.W3CInputFormat")	
+Dim objOutputFormat : Set objOutputFormat = CreateObject("MSUtil.LogQuery.CSVOutputFormat")
+
+'________________________MAIN CALLS___________
+call main()
+call SortandCount()
+
+DisplayMsg "total SpammersCnt: " & SpammersCnt
+DisplayMsg "total intSpamTot: " & intSpamTot
+DisplayMsg  outputmsg
+'_________________________ OUTPUT RESULT ___________
+intSpamTot = CDbl(intSpamTot)
+if intSpamTot >= intCritical then
+	wscript.echo "CRITICAL : " & intSpamTot & outputmsg
+	wscript.quit(intICritical)
+end if
+if intSpamTot >= intWarning then
+	wscript.echo "WARNING : " & intSpamTot & outputmsg
+	wscript.quit(intIWarning)
+end if
+if intSpamTot < intWarning then
+	wscript.echo "OK : " & intSpamTot & outputmsg
+	wscript.quit(intOK)
+end if
+
+
+'@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@FUNCTIONS AND SUBS@@@@@@@@@@@@@@@@@@@@@
+Sub Main
+'Does the Querying In Remote Servers, or local, mutiple or single
+	nomelog = GetFormatedDate(date)	
+	   sFile = sPath & "log_" & serverOUT & ".txt" 
+		strQuery ="SELECT sender-address as sa, Count(*) as Hits into " & sFile & "  FROM \\" & serverOUT & "\" & serverOUT & ".log\" & nomelog & ".log WHERE event-id = '1031' group by sender-address having count(*) > " & intSpamMin & " order by hits desc"
+		call DisplayMsg( "Querying : " & serverOUT & " , SMTP LogFile : " & nomelog & ".log , for over " & intSpamMin & " emails sent" )
+		objLogParser.ExecuteBatch strQuery, objInputFormat, objOutputFormat	
+		
+		'Should output to array!
+		call ParseResult(sFile,outputfile)	
+end sub
+
+Function ParseResult(inFile, outFile)
+'Parse logparser output and put into a txt, Case to define what to parse 
+'on error resume next
+  Set objFSO = CreateObject("Scripting.FileSystemObject")
+  Dim obj2FSO : Set obj2FSO = CreateObject("Scripting.FileSystemObject")
+  Dim oFileOut, oFileIn 
+  dim blnanswer
+ 'Open Out File For Creating/Appending
+    If objFSO.FileExists(outFile) = false Then
+         Set oFileOut= objFSO.CreateTextFile(outFile, True)        
+   Elseif objFSO.FileExists(outFile) = true Then
+        Set oFileOut= objFSO.OpenTextFile(outFile, ForAppending, True)        
+   End If
+ 'Open In File For Reading
+  If objFSO.FileExists(inFile) = true Then  
+        set	oFileIn = objFso.OpenTextFile(inFile, ForReading)       
+            Do While Not oFileIn.AtEndOfStream	
+			strLine = oFileIn.ReadLine		
+			if instr(strLine, "@") Then	
+					strline = Replace(strLine, "-,",",")
+					strline = Trim(strLine)					
+'Call RegEx To get CLEAN EMAIL ADDRES
+					strUPN = GetEmail(strLine)	
+					arrLine = Split(strLine,",")				
+					if strUPN="" then 										
+						strUPN = arrLine(0)
+					end if
+					strUPN = Trim(strUPN)	
+'COULD ALSO CHECK IF NOT IN WHITE LIST(older versions)
+						oFileOut.WriteLine strUPN &	";" & trim(arrLine(1))
+						item = trim(arrLine(1)) & ";" & strUPN
+						redim preserve arrOut(SpammersCnt)
+						arrOut(SpammersCnt) = item
+						'Call DisplayMsg("|"& item &"|")
+						SpammersCnt	= SpammersCnt + 1					
+			 end if			
+		Loop	    
+	End If 'inFile Check 
+	oFileIn.Close 'close scan txt
+	oFileOut.Close 'close scan txt  
+    Set objFSO = Nothing
+end Function
+
+'Sort Array and Get Top x Mbx
+'SORT ARRAY, NOT POSIBLE IN VBS, uses JScript! Thanks TNO, from visualbasicscript.com
+Function SortArray(arrInput)
+      SortArray = Split(SortVBArray(arrInput),"|")
+End Function
+
+
+Function GetFormatedDate(inputDate)
+ Dim intMonth : intMonth = Right("00" & Month(inputDate), 2)
+ Dim intDay : intDay = Right("00" & Day(inputDate), 2) 
+ intDay = intDay - intDaySpam 
+ if len(intDay) = 1 then
+ intDay = 0 & intDay  
+ end if
+ 
+ Dim intYear : intYear = Year(inputDate)
+ GetFormatedDate = intYear & intMonth & intDay
+End Function
+
+
+sub SortandCount() 
+	Dim x : x = 0
+	Dim p : p = 0
+	arrInfos = SortArray(arrOut)  
+	DisplayMsg join(arrInfos,vbNewLine)
+	DisplayMsg "total Top to get : " & intTopSpam & " Sorted Array Size : " &  ubound(arrINfos) & " First Array " & Ubound(arrOut)
+	
+	 'Count total EMails Sent in 1 day
+	do while x <= ubound(arrINfos) ' Just get the Top Ones
+		 arrFinal = split(arrInfos(p),";") ' Split array	 
+		 intSpamTot = intSpamTot + arrFinal(0)
+		 x = x + 1 
+	loop
+
+	if (intTopSpam  < ubound(arrINfos)) then 
+	do while p <= (intTopSpam - 1) ' Just get the Top Ones
+		 arrFinal = split(arrInfos(p),";") ' Split array
+		 outputmsg = outputmsg & " - " & arrFinal(1) & " , " & arrFinal(0) 'format output	 
+		 p = p + 1 
+	loop
+	else
+	'Less then number of Top asked were retrived just do entire array!
+	do while p <= ubound(arrINfos) ' Just get the Top Ones
+		 arrFinal = split(arrInfos(p),";") ' Split array
+		 outputmsg = outputmsg & " - " & arrFinal(1) & " , " & arrFinal(0) 'format output	 
+		 p = p + 1 
+	loop
+	end if
+end sub
+
+Function GetEmail(strString)
+    Dim RegEx,arrMatches
+    Set RegEx = New RegExp
+    RegEx.IgnoreCase = True
+    RegEx.Global=True                   
+    RegEx.Pattern="\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}\b"
+    Set arrMatches=RegEx.Execute(strString)
+    For Each item In arrMatches
+        strResults=strResults & " "& item.value
+    Next
+    GetEmail=strResults
+End Function
+
+
+'_____________________________FUNCTIONS REGARDING DISABLE ACT/ADD EX BL ___________
+
+
+sub getLDAP()
+	'Auto created the LDAP String for querying AD
+	'// Create an instance of the wshShell object
+	set WshShell = CreateObject("WScript.Shell")
+	strDomain = WshShell.ExpandEnvironmentStrings("%USERDNSDOMAIN%")
+	if strDomain = "" then 
+		DisplayMsg "You are not in a Domain, this script will not work!"
+		wscript.quit
+	end if
+	strLogonServ = WshShell.ExpandEnvironmentStrings("%LOGONSERVER%")
+	arrDC = split(strDomain,".")
+	strLogonServ = Right(strLogonServ,len(strLogonServ) - 2 )
+	trim(strLogonServ)
+	'This Auto Generate the LDAP String to connect to GC and Make a Query  WARNING: Might not work with long domain names like coco.ex.com.local 
+	'FORMAT 'strLDAP = "'" & "LDAP://<GC>.<DOMAIN>.local/DC=local" & "'"
+	strLDAP = "'" & "LDAP://" & strLogonServ & "." & strDomain & "/DC=" & arrDC(Ubound(arrDC)) &"'"
+	'DisplayMsg StrLDAP
+	set WshShell = nothing
+end sub
+
+function exec(execCmd)
+	'on error resume next
+	dim strCmd
+	dim objShell : Set objShell = WScript.CreateObject("WScript.Shell")		
+	strCmd = sPath & execCmd
+	call DisplayMsg( strCmd	)
+	Dim objExecObject : Set objExecObject = objShell.Exec(strCmd)	
+	Do While objExecObject.Status <> 1		
+		wscript.sleep 500			
+	Loop	
+	if err.number = 0 and objExecObject.Status = 1 then 				
+		'call DisplayMsg("done")
+	else
+		call DisplayMsg("error")
+	end if
+end function
+
+
+Sub CheckFiles(sFile)
+'Check if the required files(logparser.dll is present and registered)
+    dim oFolder
+    dim oFileCOllection
+    dim intFileSize : intFileSize = 0
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    Set oFSO = CreateObject("Scripting.FileSystemObject")  
+    Set objShell = WScript.CreateObject( "WScript.Shell" ) 
+ 
+	If (objFSO.FileExists(sFile)) Then 
+	 call DisplayMsg ("File logparser.dll is present now registring...")  			 
+'Resitry the .dll and exit sub
+			  objShell.Run "regsvr32 /s " & spath & "logparser.dll", , True 	
+			  displaymsg "logparser.dll was registred, run script again"
+	 		 exit sub	
+	else
+	 DisplayMsg "Downloading LogParser for you..."
+	 call GetFile("logparser.dll")	 
+	 wscript.sleep 2200   'wait for file to arraive
+	 objShell.Run "regsvr32 /s " & spath & "logparser.dll", , True 	 	 
+	 call DisplayMsg ("File logparser.dll Downloaded  and Resitered OK")
+	End If 
+	set objFso = nothing
+end sub
+
+
+sub GetFile(filename)
+'Download needed files from FTP
+	Dim objMyFile, objShell, strFTPScriptFileName
+	Dim strFileGet1, strFileGet2 
+	Dim strFTPServerName, strLoginID 
+	Dim strPassword, strFTPServerFolder,spathT
+	
+	strFTPServerName = "xoroz.com" 
+	strLoginID = "files@xoroz.com" 
+	strPassword = "files" 
+	strFTPServerFolder = "/" 
+
+	'Generate FTP command 
+	strFTPScriptFileName = spath & "FTP.txt" 
+	Set objFSO = CreateObject("Scripting.FileSystemObject") 
+	If (objFSO.FileExists(strFTPScriptFileName)) Then 
+	 objFSO.DeleteFile (strFTPScriptFileName) 
+	End If 
+	
+	If (objFSO.FileExists(spath & "\" & filename)) Then 
+	  DisplayMsg "File " & filename & " already exists, will not replace, quiting..."
+	  wscript.quit
+	End If 
+	'Remove last slash from spath name
+	spathT = left(spath,len(spath) - 1) 
+	Set objMyFile = objFSO.CreateTextFile(strFTPScriptFileName, True) 
+	objMyFile.WriteLine ("open " & strFTPServerName) 
+	objMyFile.WriteLine (strLoginID) 
+	objMyFile.WriteLine (strPassword) 
+	objMyFile.WriteLine ("cd " & strFTPServerFolder) 
+	objMyFile.WriteLine ("bin") 
+	objMyFile.WriteLine ("lcd " & spathT) 
+	objMyFile.WriteLine ("prompt off") 
+	objMyFile.WriteLine ("mget " & filename) 
+	objMyFile.WriteLine ("disconnect") 
+	objMyFile.WriteLine ("bye") 
+	objMyFile.Close 
+	
+	'Execute the FTP script. 
+	Set objShell = WScript.CreateObject( "WScript.Shell" ) 
+	'call DisplayMsg( "ftp -s:" & Chr(34) & strFTPScriptFileName & Chr(34))
+	'exec "cmd /c ftp -s:" & Chr(34) & strFTPScriptFileName & Chr(34)
+	objShell.Run "ftp -s:" & Chr(34) & strFTPScriptFileName & Chr(34), , True 	 
+	If (objFSO.FileExists(strFTPScriptFileName)) Then 	
+	 objFSO.DeleteFile (strFTPScriptFileName) 
+	End If  
+	Set objFSO = Nothing 
+	Set objMyFile = Nothing 
+	Set objShell = Nothing 
+end sub
+
+
+Function GetArgs()
+'Get ALL arguments passed to the script
+	On Error Resume Next		
+	Dim i		
+	argcountcommand=WScript.Arguments.Count		
+	for i=0 to argcountcommand-1
+		arg(i)=WScript.Arguments(i)
+	DisplayMsg i & " - " & arg(i)
+	next		
+End Function
+Function GetOneArg(strName)
+	On Error Resume Next
+	Dim i
+	for i=0 to argcountcommand-1
+		if (Ucase(arg(i))=Ucase(strName)) then
+			GetOneArg=arg(i+1)
+			Exit Function
+		end if
+	next		
+End Function
+
+Function DisplayMsg(msgTxt)
+'Prints msg on screen only if Verbose is set	
+	if Verbose = 1 then		
+		wscript.echo msgTXT
+	end if
+end Function
+</script>
+</job> 
